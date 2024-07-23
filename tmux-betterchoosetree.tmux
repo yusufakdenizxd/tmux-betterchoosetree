@@ -8,3 +8,5 @@ tmux_get() {
 tmux_set() {
     tmux set-option -gq "$1" "$2"
 }
+
+tmux bind-key w popup -B -w100% -h99% -E "./go/main"
