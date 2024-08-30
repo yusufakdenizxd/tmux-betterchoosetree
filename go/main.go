@@ -43,7 +43,7 @@ func drawWindows(screen tcell.Screen, windows []string, selected int) {
 	cols, _ := screen.Size()
 	for i, window := range windows {
 		fg := tcell.ColorLightGray
-		bg := tcell.ColorBlack
+		bg := tcell.ColorAqua
 		if i == selected {
 			fg = tcell.ColorBlack
 			bg = tcell.ColorLightGray
@@ -99,7 +99,7 @@ func getTmuxWindows() ([]string, error) {
 
 	var allWindows []string
 	for _, session := range sessions {
-		cmd := exec.Command("tmux", "list-windows", "-t", session.name, "-F", "#{window_name}")
+		cmd := exec.Command("tmux", "list-windows", "-t", session.name, "-F", "#{window_name}~#{window_id}")
 		output, err := cmd.Output()
 		if err != nil {
 			return nil, err
@@ -112,22 +112,32 @@ func getTmuxWindows() ([]string, error) {
 		}
 
 		if len(windows) == 1 {
-			commands = append(commands, session.name)
-			name := "- " + session.name + " -> " + windows[0]
+
+			splitted := strings.Split(windows[0], "~")
+			enterCommands = append(enterCommands, session.name)
+			closeCommands = append(closeCommands, "kill-session -t"+session.name)
+			name := "- " + session.name + " -> " + splitted[0]
 			if session.attached {
 				name = name + " (attached)"
 			}
 			allWindows = append(allWindows, name)
 		} else {
+
 			name := "-" + session.name + ": " + strconv.Itoa(len(windows)) + " windows"
 			if session.attached {
 				name = name + " (attached)"
 			}
 			allWindows = append(allWindows, name)
-			commands = append(commands, session.name)
+			enterCommands = append(enterCommands, session.name)
+
+			closeCommands = append(closeCommands, "kill-session -t "+session.name)
 			for windowIndex, win := range windows {
-				commands = append(commands, session.name+":"+strconv.Itoa(windowIndex+1))
-				allWindows = append(allWindows, "--> "+win)
+
+				splitted := strings.Split(win, "~")
+				enterCommands = append(enterCommands, session.name+":"+strconv.Itoa(windowIndex+1))
+
+				closeCommands = append(closeCommands, "kill-window -t "+splitted[1])
+				allWindows = append(allWindows, "--> "+splitted[0])
 			}
 		}
 	}
@@ -135,7 +145,8 @@ func getTmuxWindows() ([]string, error) {
 	return allWindows, nil
 }
 
-var commands []string
+var enterCommands []string
+var closeCommands []string
 
 func main() {
 	screen, err := initUI()
@@ -175,6 +186,12 @@ func main() {
 				if selected < 0 {
 					selected = len(rows) - 1
 				}
+			case 'x':
+				cmd := exec.Command("tmux", closeCommands[selected])
+				_, err := cmd.Output()
+				if err != nil {
+					panic(err)
+				}
 			case 'g':
 				selected = 0
 			case 'G':
@@ -203,7 +220,7 @@ func main() {
 			case tcell.KeyEnd:
 				selected = len(rows) - 1
 			case tcell.KeyEnter:
-				cmd := exec.Command("tmux", "switch", "-t", commands[selected])
+				cmd := exec.Command("tmux", "switch", "-t", enterCommands[selected])
 				_, err := cmd.Output()
 				if err != nil {
 					panic(err)
